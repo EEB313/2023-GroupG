@@ -1,0 +1,14 @@
+---
+title: "Group Project"
+author: "Jem Barrett"
+date: "2023-11-01"
+output: html_document
+---
+
+
+Git add
+  git add -A : add all
+  Halway to being on github
+Git commit
+Git push
+Git status
