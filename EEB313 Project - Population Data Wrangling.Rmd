@@ -8,6 +8,7 @@ output: html_notebook
 
 ```{r}
 library(tidyverse)
+library(readxl)
 ```
 
 
@@ -43,7 +44,6 @@ ont_eab_data$community <- gsub(" DIVISION", "", ont_eab_data$community)
 ont_eab_data$community <- gsub(" REGIONAL MUNICIPALITY", "", ont_eab_data$community)
 ont_eab_data$community <- gsub(" MUNICIPALITY", "", ont_eab_data$community)
 ```
-
 
 
 ## Population Density Data
@@ -118,7 +118,18 @@ for (i in 1:length(ont_eab_data)){
 ```
 
 
+It would be useful to know how many observations we have for each community to see if it would be easier for us to exclude communities we do not have population data for if they don't have a lot of observations and therefore would not have a strong effect on our future models.
 
+```{r}
+# count number of not detected observations, detected observations, and total observations
+community_observations <- ont_eab_data %>% 
+  select(community, result) %>% 
+  pivot_wider(names_from = result, values_from = result, values_fn = length, values_fill = 0) %>% 
+  mutate(Total = select(., 'NOT DETECTED', 'DETECTED') %>% rowSums)
+
+colnames(community_observations) <- c("community", "not_detected", "detected", "Total")
+
+```
 
 
 
