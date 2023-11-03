@@ -1,0 +1,124 @@
+---
+title: "EEB313 Project: Population Data Wrangling"
+author: "Group G"
+output: html_notebook
+---
+
+## Packages
+
+```{r}
+library(tidyverse)
+```
+
+
+# Import Data and Wrangling (sorted by dataset)
+
+## Emerald Ash Borer Data
+
+```{r}
+# I already downloaded the EAB dataset and saved it to my working directory
+# Here's the link to the Stats Can website to download it
+## https://open.canada.ca/data/en/dataset/69f4ecd8-9761-4d40-b0f9-e186f2fcce5b/resource/05da66b3-645d-4530-aa18-53bd2b67edfb
+raw_eab_data <- read_excel("emerald-ash-borer-surveillance-data-2002-to-2020-en.xlsx")
+
+# change column names from all uppercase to all lowercase to make it easier to work with
+colnames(raw_eab_data) <- c("latitude", "longitude", "survey", "year", "province", "community", "result")
+
+# add column with numerical binary for result ("NOT DETECTED" == 0 and "DETECTED" == 1)
+raw_eab_data <- raw_eab_data %>% mutate(EAB_status  = ifelse(result == "NOT DETECTED", 0, 1))
+
+# separate dataset for Ontario only and keep only necessary columns
+ont_eab_data <- raw_eab_data %>% subset(province == "ONTARIO")
+ont_eab_data <- ont_eab_data[, c(1, 2, 4, 6, 7, 8)]
+```
+
+
+Since the community names in our EAB data include designations that are common to more than one community (ex. County, District, etc) and the census data does not include them, I removed the designations so that they didn't cause problems when matching the community names in our EAB data to the census data names.
+
+```{r}
+# I wanted to create a function to do this instead of listing them individually, but I couldn't get it to work
+ont_eab_data$community <- gsub(" COUNTY", "", ont_eab_data$community)
+ont_eab_data$community <- gsub(" DISTRICT", "", ont_eab_data$community)
+ont_eab_data$community <- gsub(" DIVISION", "", ont_eab_data$community)
+ont_eab_data$community <- gsub(" REGIONAL MUNICIPALITY", "", ont_eab_data$community)
+ont_eab_data$community <- gsub(" MUNICIPALITY", "", ont_eab_data$community)
+```
+
+
+
+## Population Density Data
+
+This is the Canada-wide census data for the 2021 census. It includes census data for the provinces/territories and their census divisions (does not include census subdivisions and municipalities). The data is organized with a province/territory followed by all of its census divisions below the province/territory, wherein the provinces are listed by geographical location west to east (Newfoundland and Labrador, Prince Edward Island, Nova Scotia, New Brunswick, Quebec, Ontario, Manitoba, Saskatchewan, British Columbia), then the territories are listed east to west (Yukon, Northwest Territories, Nunavut). For example, row 14 is the province of Prince Edward Island (PEI), and row 15 is a census division in PEI called Kings. After 2 more rows of divisions, row 18 is the province of Nova Scotia.
+
+```{r}
+# download and unzip file
+temp <- tempfile()
+download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100007-eng.zip", temp)
+canada_census_2021 <- read.csv(unz(temp, "98100007.csv"))
+unlink(temp)
+
+
+# # find row number for first and last Ontario communities for subsetting
+# grep("Ontario", canada_census_2021$GEO) # row 152
+# grep("Manitoba", canada_census_2021$GEO) # row 202
+# 
+# # return column names to subset to necessary columns
+# colnames(canada_census_2021) # keep columns 2 (community name), 5 (population 2021), 25 (population density)
+
+
+# subset canada_census_2021 to Ontario only and keep name, population, and population density columns
+## to exclude the rows for the provinces themselves, the chosen rows are 1 after the Ontario row
+## and 1 before the Manitoba row
+ont_population <- canada_census_2021[153:201, c(2, 5, 25)]
+
+# simplify column names
+colnames(ont_population) <- c("community_name", "population_2021", "pop_density_2021")
+```
+
+Now that we have data for the population size and population density, the next step is to match the community names from our EAB data to the census data and add the population size and population density for the matching names. Empty columns for population  size in 2021 and population density in 2021 were created in our EAB data so that we can populate them using a function that matches the community names.
+
+```{r}
+# create new columns for population size and population density for 2021
+ont_eab_data$population_2021 <- NA
+ont_eab_data$pop_density_2021 <- NA
+```
+
+Below is the code for matching community names. We should consider changing this into a function as well. The purpose of this code is to:
+
+1) For each community name in our EAB data, search for the same name in the census data, 
+
+2) Save the returned row number of the matching census community name in a new variable, 
+
+    * If there is no match, the returned value would be an empty integer (integer (0))
+    
+3) If row number != integer (0), append the population size and population density to the appropriate empty columns in our EAB data
+
+The current issue is that it fills out only the first 8 rows of our EAB data and I don't understand why.
+
+```{r}
+# match community names from EAB data with geographic names in ont_population
+# to keep population data only for communities we have EAB data for
+
+for (i in 1:length(ont_eab_data)){
+  
+  # create a new variable with the row number of the matching community name in ont_population
+  ## case insensitive because EAB data is all uppercase and census data only has first letter capitalized
+  j <- grep(ont_eab_data$community[i], ont_population$community_name, ignore.case = TRUE)
+
+  # if matching community name was found, row number will NOT equal integer (0)
+  if (!identical(j, integer (0))) {
+  
+  ont_eab_data$population_2021[i] = ont_population$population_2021[j]
+  ont_eab_data$pop_density_2021[i] = ont_population$pop_density_2021[j]
+
+  }
+  
+}
+
+```
+
+
+
+
+
+
