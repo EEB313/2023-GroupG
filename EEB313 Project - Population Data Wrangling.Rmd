@@ -6,7 +6,7 @@ output: html_notebook
 
 ## Packages
 
-```{r}
+```{r setup}
 library(tidyverse)
 library(readxl)
 ```
@@ -16,10 +16,7 @@ library(readxl)
 
 ## Emerald Ash Borer Data
 
-```{r}
-# I already downloaded the EAB dataset and saved it to my working directory
-# Here's the link to the Stats Can website to download it
-## https://open.canada.ca/data/en/dataset/69f4ecd8-9761-4d40-b0f9-e186f2fcce5b/resource/05da66b3-645d-4530-aa18-53bd2b67edfb
+```{r download_EAB_data}
 raw_eab_data <- read_excel("emerald-ash-borer-surveillance-data-2002-to-2020-en.xlsx")
 
 # change column names from all uppercase to all lowercase to make it easier to work with
@@ -31,71 +28,100 @@ raw_eab_data <- raw_eab_data %>% mutate(EAB_status  = ifelse(result == "NOT DETE
 # separate dataset for Ontario only and keep only necessary columns
 ont_eab_data <- raw_eab_data %>% subset(province == "ONTARIO")
 ont_eab_data <- ont_eab_data[, c(1, 2, 4, 6, 7, 8)]
+
+# remove NAs from community for future matching
+ont_eab_data <- ont_eab_data %>% subset(!is.na(community))
 ```
 
 
-Since the community names in our EAB data include designations that are common to more than one community (ex. County, District, etc) and the census data does not include them, I removed the designations so that they didn't cause problems when matching the community names in our EAB data to the census data names.
+Some of community names in our EAB data include designations that are common to more than one community (ex. County, District, etc) and although some of the census data names also have this feature, we can't guess whether the corresponding communities will be formatted the same way (ex. will "Bruce County" in our EAB data be written as "Bruce" or "Bruce County" in the census?). However, the designation may help us in our report later on when we have to talk about the different communities. That's why instead of changing our existing community names, I created a new column of the names with the designations removed. We will also do the same thing to the census data after downloading it.
 
-```{r}
-# I wanted to create a function to do this instead of listing them individually, but I couldn't get it to work
-ont_eab_data$community <- gsub(" COUNTY", "", ont_eab_data$community)
-ont_eab_data$community <- gsub(" DISTRICT", "", ont_eab_data$community)
-ont_eab_data$community <- gsub(" DIVISION", "", ont_eab_data$community)
-ont_eab_data$community <- gsub(" REGIONAL MUNICIPALITY", "", ont_eab_data$community)
-ont_eab_data$community <- gsub(" MUNICIPALITY", "", ont_eab_data$community)
+```{r edit_community_names}
+ont_eab_data <- ont_eab_data %>% 
+  mutate(community_2 = str_replace_all(ont_eab_data$community,
+                        c(" COUNTY" = "", " DISTRICT" = "", " DIVISION" = "", 
+                          " REGIONAL MUNICIPALITY" = "", " MUNICIPALITY" = "",
+                          " UNITED COUNTIES" = "")))
 ```
 
 
 ## Population Density Data
 
-This is the Canada-wide census data for the 2021 census. It includes census data for the provinces/territories and their census divisions (does not include census subdivisions and municipalities). The data is organized with a province/territory followed by all of its census divisions below the province/territory, wherein the provinces are listed by geographical location west to east (Newfoundland and Labrador, Prince Edward Island, Nova Scotia, New Brunswick, Quebec, Ontario, Manitoba, Saskatchewan, British Columbia), then the territories are listed east to west (Yukon, Northwest Territories, Nunavut). For example, row 14 is the province of Prince Edward Island (PEI), and row 15 is a census division in PEI called Kings. After 2 more rows of divisions, row 18 is the province of Nova Scotia.
-
-```{r}
-# download and unzip file
+```{r download_census_data}
+# download Canada-wide census data for 2021 and unzip file
 temp <- tempfile()
-download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100007-eng.zip", temp)
-canada_census_2021 <- read.csv(unz(temp, "98100007.csv"))
+download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100002-eng.zip", temp)
+canada_census_2021 <- read.csv(unz(temp, "98100002.csv"))
 unlink(temp)
+```
 
 
+We will be using census data from the Government of Canada for the 2021 Canada-wide census. This census data includes the provinces/territories, census divisions, and census subdivisions. The data is organized with a province/territory followed by all of its census divisions below it and the census subdivisions nested within their corresponding census division. The provinces are listed by geographical location west to east (Newfoundland and Labrador, Prince Edward Island, Nova Scotia, New Brunswick, Quebec, Ontario, Manitoba, Saskatchewan, British Columbia), then the territories are listed east to west (Yukon, Northwest Territories, Nunavut). Here is a simplified table of how the dataframe is organized as well as an example using several rows subsetted from the actual census dataset.
+
+```{r census_data_organization}
+name <- c("Province 1", "Census division 1", "Census subdivision 1",
+          "Census subdivision 2", "Census division 2", 
+          "Census subdivision 1", "Province 2")
+
+population_size <- c(53000, 21000, 5800, 12000, 7500, 4000, 36000)
+
+pop_density <- c(15, 23, 12, 25, 18, 16, 20)
+
+census_data_org <- data.frame(name, population_size, pop_density)
+census_data_org
+
+org_ex_2021_census <- canada_census_2021[c(2265, 2300, 2301, 2305, 2312, 2892), c(2, 5, 25)]
+colnames(org_ex_2021_census) <- c("name", "population_2021", "pop_density_2021")
+org_ex_2021_census
+```
+
+
+Since we are only planning to analyze our EAB data for Ontario, we start by subsetting the census data to this province. We also removed any NAs from the community names since they aren't needed for matching community names from our EAB data and extracting the population size and density of the matching locations.  
+
+```{r subsetting_census_data}
 # # find row number for first and last Ontario communities for subsetting
-# grep("Ontario", canada_census_2021$GEO) # row 152
-# grep("Manitoba", canada_census_2021$GEO) # row 202
+# grep("Ontario", canada_census_2021$GEO) # row 2265
+# grep("Manitoba", canada_census_2021$GEO) # row 2891
 # 
-# # return column names to subset to necessary columns
+# # return column names to choose necessary columns
 # colnames(canada_census_2021) # keep columns 2 (community name), 5 (population 2021), 25 (population density)
 
-
-# subset canada_census_2021 to Ontario only and keep name, population, and population density columns
+# subset canada_census_2021 dataframe to Ontario only and 
+# keep name, population, and population density columns
 ## to exclude the rows for the provinces themselves, the chosen rows are 1 after the Ontario row
 ## and 1 before the Manitoba row
-ont_population <- canada_census_2021[153:201, c(2, 5, 25)]
+ont_census_data <- canada_census_2021[2266:2890, c(2, 5, 25)]
 
 # simplify column names
-colnames(ont_population) <- c("community_name", "population_2021", "pop_density_2021")
+colnames(ont_census_data) <- c("community_name", "population_2021", "pop_density_2021")
+
+# remove NAs from communities
+ont_census_data <-ont_census_data %>% subset(!is.na(community_name))
+
+ont_census_data <- ont_census_data %>% 
+  mutate(community_name_2 = str_replace_all(ont_census_data$community_name,
+                        c(" County" = "", " District" = "", " Division" = "", 
+                          " Regional Municipality" = "", " Municipality" = "",
+                          " United Counties" = "")))
+
 ```
 
-Now that we have data for the population size and population density, the next step is to match the community names from our EAB data to the census data and add the population size and population density for the matching names. Empty columns for population  size in 2021 and population density in 2021 were created in our EAB data so that we can populate them using a function that matches the community names.
 
-```{r}
-# create new columns for population size and population density for 2021
-ont_eab_data$population_2021 <- NA
-ont_eab_data$pop_density_2021 <- NA
-```
+Now that we have data for the population size and population density, the next step is to match the community names from our EAB data to the census data and add the population size and population density for the matching names. Empty columns for population  size in 2021 and population density in 2021 were created in our EAB data so that we can populate them using a function that matches the community names.  
 
 Below is the code for matching community names. We should consider changing this into a function as well. The purpose of this code is to:
 
 1) For each community name in our EAB data, search for the same name in the census data, 
 
-2) Save the returned row number of the matching census community name in a new variable, 
+2) Save the row number of the first census community name that is an exact match in a new variable, 
 
     * If there is no match, the returned value would be an empty integer (integer (0))
     
-3) If row number != integer (0), append the population size and population density to the appropriate empty columns in our EAB data
+3) If row number != integer (0), append the population size and population density to the appropriate empty columns in our EAB data. 
 
 The current issue is that it fills out only the first 8 rows of our EAB data and I don't understand why.
 
-```{r}
+```{r match_community_names}
 # match community names from EAB data with geographic names in ont_population
 # to keep population data only for communities we have EAB data for
 
@@ -120,7 +146,7 @@ for (i in 1:length(ont_eab_data)){
 
 It would be useful to know how many observations we have for each community to see if it would be easier for us to exclude communities we do not have population data for if they don't have a lot of observations and therefore would not have a strong effect on our future models.
 
-```{r}
+```{r counting_EAB_results}
 # count number of not detected observations, detected observations, and total observations
 community_observations <- ont_eab_data %>% 
   select(community, result) %>% 
