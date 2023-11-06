@@ -58,7 +58,7 @@ unlink(temp)
 ```
 
 
-```{r}
+```{r subsetting_census_data}
 # subset dataframe to Ontario only and 
 # keep name, population, and population density columns
 ## to exclude the rows for the provinces themselves, the chosen rows are 1 after the Ontario row
@@ -94,11 +94,13 @@ Below is the code for matching community names. We should consider changing this
 # match community names from EAB data with geographic names in census_2021_pop_centres
 # to keep population data only for communities we have EAB data for
 
+ont_eab_data$community_type <- NA
+
 for (i in 1:nrow(ont_eab_data)){
   
   # create a new variable with the row number of the matching community name in ont_population
   ## case insensitive because EAB data is all uppercase and census data only has first letter capitalized
-  j <- grep(ont_eab_data$community[i], ont_population$community_name, ignore.case = TRUE)
+  j <- grep(ont_eab_data$community_2[i], census_2021_pop_centres$community_name_2, ignore.case = TRUE)
 
   # if matching community name was found, row number will NOT equal integer (0)
   if (!identical(j, integer (0))) {
