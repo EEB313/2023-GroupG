@@ -47,67 +47,38 @@ ont_eab_data <- ont_eab_data %>%
 
 ## Population Density Data
 
-```{r download_census_data}
-# download Canada-wide census data for 2021 and unzip file
-temp <- tempfile()
-download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100002-eng.zip", temp)
-canada_census_2021 <- read.csv(unz(temp, "98100002.csv"))
+To determine whether the communities in our EAB data are urban or rural, we decided to use the Canadian 2021 census from Statistics Canada. We found a dataset containing only census information for population centres in Canada. According to StatCan, population centres are communities that have a population of at least 1000 people and a population density of at least 400 people per square kilometre. Locations that don't meet these requirements are considered rural. If the communities from our EAB data are found in the population centres data, we can identify them as urban, and if they are missing, they will be rural. Since the dataset is for all of Canada, we will also subset to only population centres in Ontario.
+
+```{r download_urban_data}
+# download census 2021 data for population centres and unzip file
+temp <- tempfile() 
+download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100011-eng.zip", temp)
+census_2021_pop_centres <- read.csv(unz(temp, "98100011.csv"))
 unlink(temp)
 ```
 
 
-We will be using census data from the Government of Canada for the 2021 Canada-wide census. This census data includes the provinces/territories, census divisions, and census subdivisions. The data is organized with a province/territory followed by all of its census divisions below it and the census subdivisions nested within their corresponding census division. The provinces are listed by geographical location west to east (Newfoundland and Labrador, Prince Edward Island, Nova Scotia, New Brunswick, Quebec, Ontario, Manitoba, Saskatchewan, British Columbia), then the territories are listed east to west (Yukon, Northwest Territories, Nunavut). Here is a simplified table of how the dataframe is organized as well as an example using several rows subsetted from the actual census dataset.
-
-```{r census_data_organization}
-name <- c("Province 1", "Census division 1", "Census subdivision 1",
-          "Census subdivision 2", "Census division 2", 
-          "Census subdivision 1", "Province 2")
-
-population_size <- c(53000, 21000, 5800, 12000, 7500, 4000, 36000)
-
-pop_density <- c(15, 23, 12, 25, 18, 16, 20)
-
-census_data_org <- data.frame(name, population_size, pop_density)
-census_data_org
-
-org_ex_2021_census <- canada_census_2021[c(2265, 2300, 2301, 2305, 2312, 2892), c(2, 5, 25)]
-colnames(org_ex_2021_census) <- c("name", "population_2021", "pop_density_2021")
-org_ex_2021_census
-```
-
-
-Since we are only planning to analyze our EAB data for Ontario, we start by subsetting the census data to this province. We also removed any NAs from the community names since they aren't needed for matching community names from our EAB data and extracting the population size and density of the matching locations.  
-
-```{r subsetting_census_data}
-# # find row number for first and last Ontario communities for subsetting
-# grep("Ontario", canada_census_2021$GEO) # row 2265
-# grep("Manitoba", canada_census_2021$GEO) # row 2891
-# 
-# # return column names to choose necessary columns
-# colnames(canada_census_2021) # keep columns 2 (community name), 5 (population 2021), 25 (population density)
-
-# subset canada_census_2021 dataframe to Ontario only and 
+```{r}
+# subset dataframe to Ontario only and 
 # keep name, population, and population density columns
 ## to exclude the rows for the provinces themselves, the chosen rows are 1 after the Ontario row
 ## and 1 before the Manitoba row
-ont_census_data <- canada_census_2021[2266:2890, c(2, 5, 25)]
+census_2021_pop_centres <- census_2021_pop_centres[380:681, c(2, 3, 5, 17)]
 
 # simplify column names
-colnames(ont_census_data) <- c("community_name", "population_2021", "pop_density_2021")
+colnames(census_2021_pop_centres) <- c("community_name", "DGUID", "population_2021", "pop_density_2021")
 
-# remove NAs from communities
-ont_census_data <-ont_census_data %>% subset(!is.na(community_name))
 
-ont_census_data <- ont_census_data %>% 
-  mutate(community_name_2 = str_replace_all(ont_census_data$community_name,
+# new column with designations removed
+census_2021_pop_centres <- census_2021_pop_centres %>% 
+  filter(!is.na(community_name)) %>% 
+  mutate(community_name_2 = str_replace_all(census_2021_pop_centres$community_name,
                         c(" County" = "", " District" = "", " Division" = "", 
-                          " Regional Municipality" = "", " Municipality" = "",
-                          " United Counties" = "")))
-
+                          " Regional Municipality" = "", " Municipality" = "")))
 ```
 
 
-Now that we have data for the population size and population density, the next step is to match the community names from our EAB data to the census data and add the population size and population density for the matching names. Empty columns for population  size in 2021 and population density in 2021 were created in our EAB data so that we can populate them using a function that matches the community names.  
+Now that we have data for the urban communities, the next step is to match the community names from our EAB data to the census data and determine the community type. We made an empty column 'community_type' in our EAB data so that we can use a for loop to populate it
 
 Below is the code for matching community names. We should consider changing this into a function as well. The purpose of this code is to:
 
@@ -117,15 +88,13 @@ Below is the code for matching community names. We should consider changing this
 
     * If there is no match, the returned value would be an empty integer (integer (0))
     
-3) If row number != integer (0), append the population size and population density to the appropriate empty columns in our EAB data. 
-
-The current issue is that it fills out only the first 8 rows of our EAB data and I don't understand why.
+3) If row number != integer (0), append "urban' to empty columns in our EAB data, else append 'rural'. 
 
 ```{r match_community_names}
-# match community names from EAB data with geographic names in ont_population
+# match community names from EAB data with geographic names in census_2021_pop_centres
 # to keep population data only for communities we have EAB data for
 
-for (i in 1:length(ont_eab_data)){
+for (i in 1:nrow(ont_eab_data)){
   
   # create a new variable with the row number of the matching community name in ont_population
   ## case insensitive because EAB data is all uppercase and census data only has first letter capitalized
@@ -143,19 +112,6 @@ for (i in 1:length(ont_eab_data)){
 
 ```
 
-
-It would be useful to know how many observations we have for each community to see if it would be easier for us to exclude communities we do not have population data for if they don't have a lot of observations and therefore would not have a strong effect on our future models.
-
-```{r counting_EAB_results}
-# count number of not detected observations, detected observations, and total observations
-community_observations <- ont_eab_data %>% 
-  select(community, result) %>% 
-  pivot_wider(names_from = result, values_from = result, values_fn = length, values_fill = 0) %>% 
-  mutate(Total = select(., 'NOT DETECTED', 'DETECTED') %>% rowSums)
-
-colnames(community_observations) <- c("community", "not_detected", "detected", "Total")
-
-```
 
 
 
