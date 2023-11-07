@@ -78,40 +78,28 @@ census_2021_pop_centres <- census_2021_pop_centres %>%
 ```
 
 
-Now that we have data for the urban communities, the next step is to match the community names from our EAB data to the census data and determine the community type. We made an empty column 'community_type' in our EAB data so that we can use a for loop to populate it
-
-Below is the code for matching community names. We should consider changing this into a function as well. The purpose of this code is to:
-
-1) For each community name in our EAB data, search for the same name in the census data, 
-
-2) Save the row number of the first census community name that is an exact match in a new variable, 
-
-    * If there is no match, the returned value would be an empty integer (integer (0))
-    
-3) If row number != integer (0), append "urban' to empty columns in our EAB data, else append 'rural'. 
+Now that we have data for the urban communities, the next step is to match the community names from our EAB data to the census data and determine the community type. We made an empty column 'community_type' in our EAB data so that we can use a for loop to populate it. 
 
 ```{r match_community_names}
-# match community names from EAB data with geographic names in census_2021_pop_centres
-# to keep population data only for communities we have EAB data for
+ont_eab_data$community_type <- NA  # new column for community type
 
-ont_eab_data$community_type <- NA
-
-for (i in 1:nrow(ont_eab_data)){
+for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
   
-  # create a new variable with the row number of the matching community name in ont_population
-  ## case insensitive because EAB data is all uppercase and census data only has first letter capitalized
-  j <- grep(ont_eab_data$community_2[i], census_2021_pop_centres$community_name_2, ignore.case = TRUE)
-
-  # if matching community name was found, row number will NOT equal integer (0)
-  if (!identical(j, integer (0))) {
+  j <- which(tolower(ont_eab_data$community_2[i]) == tolower(census_2021_pop_centres$community_name_2))
+  # find this row's community in column of census data community names
+  # searching for identical names -> NO partial matches
+  # returns row number of matching name in census data or integer (0) if no matching name found
   
-  ont_eab_data$population_2021[i] = ont_population$population_2021[j]
-  ont_eab_data$pop_density_2021[i] = ont_population$pop_density_2021[j]
-
+  if (!identical(j, integer (0))) {   # if row number returned
+    ont_eab_data$community_type[i] <- "urban"
+    
+  } else {
+    ont_eab_data$community_type[i] <- "rural"
+    
   }
+    
   
 }
-
 ```
 
 
