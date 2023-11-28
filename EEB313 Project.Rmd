@@ -24,10 +24,12 @@ library(lmerTest)
 raw_eab_data <- read_excel("emerald-ash-borer-surveillance-data-2002-to-2020-en.xlsx")
 
 # change column names from all uppercase to all lowercase to make it easier to work with
-colnames(raw_eab_data) <- c("latitude", "longitude", "survey", "year", "province", "community", "result")
+colnames(raw_eab_data) <- c("latitude", "longitude", "survey", "year",
+                            "province", "community", "result")
 
 # add column with numerical binary for result ("NOT DETECTED" == 0 and "DETECTED" == 1)
-raw_eab_data <- raw_eab_data %>% mutate(EAB_status  = ifelse(result == "NOT DETECTED", 0, 1))
+raw_eab_data <- raw_eab_data %>% mutate(EAB_status = ifelse(result == "NOT DETECTED", 
+                                                            0, 1))
 
 # separate dataset for Ontario only and keep only necessary columns
 ont_eab_data <- raw_eab_data %>% subset(province == "ONTARIO")
@@ -65,12 +67,13 @@ unlink(temp)
 ```{r subsetting_census_data}
 # subset dataframe to Ontario only and 
 # keep name, population, and population density columns
-## to exclude the rows for the provinces themselves, the chosen rows are 1 after the Ontario row
-## and 1 before the Manitoba row
+## to exclude the rows for the provinces themselves, the chosen rows are
+## 1 after the Ontario row and 1 before the Manitoba row
 census_2021_pop_centres <- census_2021_pop_centres[380:681, c(2, 3, 5, 17)]
 
 # simplify column names
-colnames(census_2021_pop_centres) <- c("community_name", "DGUID", "population_2021", "pop_density_2021")
+colnames(census_2021_pop_centres) <- c("community_name", "DGUID", 
+                                       "population_2021", "pop_density_2021")
 
 
 # new column with designations removed
@@ -89,10 +92,11 @@ ont_eab_data$community_type <- NA  # new column for community type
 
 for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
   
-  j <- which(tolower(ont_eab_data$community_2[i]) == tolower(census_2021_pop_centres$community_name_2))
+  j <- which(tolower(ont_eab_data$community_2[i]) == 
+             tolower(census_2021_pop_centres$community_name_2))
   # find this row's community in column of census data community names
   # searching for identical names -> NO partial matches
-  # returns row number of matching name in census data or integer (0) if no matching name found
+  # returns row number of matching name or integer (0) if no matching name found
   
   if (!identical(j, integer (0))) {   # if row number returned
     ont_eab_data$community_type[i] <- "urban"
@@ -120,11 +124,13 @@ Has EAB abundance changed over the years in different Ontario communities?
 
 ```{r}
 # effect of time on EAB abundance
-time_glm_model <- glm(as.factor(result)~year, family = binomial, data = ont_eab_data)
+time_glm_model <- glm(as.factor(result)~year, 
+                      family = binomial, data = ont_eab_data)
 summary(time_glm_model)
 
 # effect of time on EAB abundance by community
-time_glm_model <- glm(as.factor(result)~year * community, family = binomial, data = ont_eab_data)
+time_glm_model <- glm(as.factor(result)~year * community, 
+                      family = binomial, data = ont_eab_data)
 summary(time_glm_model)
 ```
 
@@ -133,14 +139,16 @@ summary(time_glm_model)
 
 ```{r}
 # effect of latitude and longitude and their interaction on EAB detection
-coordinates_glm_model <- glm(as.factor(result)~year * latitude * longitude, family = binomial, data = ont_eab_data)
+coordinates_glm_model <- glm(as.factor(result)~year * latitude * longitude, 
+                             family = binomial, data = ont_eab_data)
 summary(coordinates_glm_model)
 ```
 #### Is there a relationship between coordinates and community type?
 
 ```{r}
 # latitude and longitude and their interaction on community type
-coord_type_model <- glm(as.factor(community_type)~latitude * longitude, family = binomial, data = ont_eab_data)
+coord_type_model <- glm(as.factor(community_type)~latitude * longitude, 
+                        family = binomial, data = ont_eab_data)
 summary(coord_type_model)
 ```
 #### Is there a relationship between coordinates and mean temperature?
@@ -160,7 +168,8 @@ types_result <- table(ont_eab_data$community_type, ont_eab_data$result)
 chisq.test(ont_eab_data$community_type, ont_eab_data$result, correct = F)
 
 # effect of community type on EAB abundance over the years
-type_model <- glm(as.factor(result)~year * community_type, family = binomial, data = ont_eab_data)
+type_model <- glm(as.factor(result)~year * community_type, 
+                  family = binomial, data = ont_eab_data)
 summary(type_model)
 ```
 
