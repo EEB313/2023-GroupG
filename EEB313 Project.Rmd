@@ -1,7 +1,9 @@
 ---
-title: "EEB313 Project: Population Data Wrangling"
+title: "EEB313 Project"
 author: "Group G"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
 ## Packages
@@ -9,6 +11,8 @@ output: html_notebook
 ```{r setup}
 library(tidyverse)
 library(readxl)
+library(lme4)
+library(lmerTest)
 ```
 
 
@@ -104,4 +108,66 @@ for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
 
 
 
+## Methods
+
+### Model 1: Time
+
+Has EAB abundance changed over the years in different Ontario communities?
+
+* Number of observations for each community differ
+* Locations within each community are different (with some same locations between years)
+
+
+```{r}
+# effect of time on EAB abundance
+time_glm_model <- glm(as.factor(result)~year, family = binomial, data = ont_eab_data)
+summary(time_glm_model)
+
+# effect of time on EAB abundance by community
+time_glm_model <- glm(as.factor(result)~year * community, family = binomial, data = ont_eab_data)
+summary(time_glm_model)
+```
+
+
+### Model 2: Latitude and Longitude
+
+```{r}
+# effect of latitude and longitude and their interaction on EAB detection
+coordinates_glm_model <- glm(as.factor(result)~year * latitude * longitude, family = binomial, data = ont_eab_data)
+summary(coordinates_glm_model)
+```
+#### Is there a relationship between coordinates and community type?
+
+```{r}
+# latitude and longitude and their interaction on community type
+coord_type_model <- glm(as.factor(community_type)~latitude * longitude, family = binomial, data = ont_eab_data)
+summary(coord_type_model)
+```
+#### Is there a relationship between coordinates and mean temperature?
+
+```{r}
+# latitude and longitude and their interaction on mean temperature
+
+```
+
+
+### Model 4: Community Type
+
+```{r}
+# effect of community type on EAB abundance
+types_result <- table(ont_eab_data$community_type, ont_eab_data$result)
+
+chisq.test(ont_eab_data$community_type, ont_eab_data$result, correct = F)
+
+# effect of community type on EAB abundance over the years
+type_model <- glm(as.factor(result)~year * community_type, family = binomial, data = ont_eab_data)
+summary(type_model)
+```
+
+
+### Model 5: Temperature
+
+```{r}
+
+```
 
