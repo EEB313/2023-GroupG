@@ -27,13 +27,9 @@ raw_eab_data <- read_excel("emerald-ash-borer-surveillance-data-2002-to-2020-en.
 colnames(raw_eab_data) <- c("latitude", "longitude", "survey", "year",
                             "province", "community", "result")
 
-# add column with numerical binary for result ("NOT DETECTED" == 0 and "DETECTED" == 1)
-raw_eab_data <- raw_eab_data %>% mutate(EAB_status = ifelse(result == "NOT DETECTED", 
-                                                            0, 1))
-
 # separate dataset for Ontario only and keep only necessary columns
 ont_eab_data <- raw_eab_data %>% subset(province == "ONTARIO")
-ont_eab_data <- ont_eab_data[, c(1, 2, 4, 6, 7, 8)]
+ont_eab_data <- ont_eab_data[, c(1, 2, 4, 6, 7)]
 
 # remove NAs from community for future matching
 ont_eab_data <- ont_eab_data %>% subset(!is.na(community))
@@ -111,6 +107,8 @@ for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
 ```
 
 
+## Temperature Data
+
 
 ## Methods
 
@@ -178,5 +176,35 @@ summary(type_model)
 
 ```{r}
 
+```
+
+
+
+## Results
+
+### Model 4: Community Type
+
+```{r}
+ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + geom_boxplot() + 
+  geom_point(size = 0.6, alpha = 0.4) + facet_wrap(~community_type)
+```
+
+```{r}
+ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + geom_violin() + facet_wrap(~community_type)
+
+```
+
+```{r fig.asp = 0.5, fig.width = 8.5}
+ont_eab_data %>% 
+  ggplot(aes(x = year, fill = community_type)) + geom_histogram(binwidth = 1.2) + 
+  facet_wrap(~result, scales = "free_y") +
+  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+```
+
+```{r}
+ggplot(ont_eab_data, aes(x = result, fill = community_type)) + geom_histogram(stat = "count")
 ```
 
