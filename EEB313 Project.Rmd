@@ -109,6 +109,27 @@ for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
 
 ## Temperature Data
 
+```{r}
+temperature_data <- read_excel("EEB313_EAB_weather_1.xlsx")
+temperature_data <- temperature_data[,1:3] # remove unnecessary columns
+```
+
+```{r}
+ont_eab_data$avg_temp <- NA  # new column for temperature
+
+for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
+  
+  k <- which(tolower(ont_eab_data$community[i]) == 
+             tolower(temperature_data$Community))
+  # return row number of matching community name
+  
+  ont_eab_data$avg_temp[i] <- temperature_data$Avg_Temp[k]
+      
+      
+}
+
+```
+
 
 ## Methods
 
@@ -126,10 +147,12 @@ time_glm_model <- glm(as.factor(result)~year,
                       family = binomial, data = ont_eab_data)
 summary(time_glm_model)
 
+
 # effect of time on EAB abundance by community
-time_glm_model <- glm(as.factor(result)~year * community, 
+time_community_model <- glm(as.factor(result)~year * community, 
                       family = binomial, data = ont_eab_data)
-summary(time_glm_model)
+
+anova(time_community_model, test="Chi")
 ```
 
 
@@ -141,6 +164,8 @@ coordinates_glm_model <- glm(as.factor(result)~year * latitude * longitude,
                              family = binomial, data = ont_eab_data)
 summary(coordinates_glm_model)
 ```
+
+
 #### Is there a relationship between coordinates and community type?
 
 ```{r}
@@ -149,11 +174,14 @@ coord_type_model <- glm(as.factor(community_type)~latitude * longitude,
                         family = binomial, data = ont_eab_data)
 summary(coord_type_model)
 ```
+
+
 #### Is there a relationship between coordinates and mean temperature?
 
 ```{r}
 # latitude and longitude and their interaction on mean temperature
-
+coord_temp_model <- lm(avg_temp ~ latitude * longitude, data = ont_eab_data)
+summary(coord_temp_model)
 ```
 
 
@@ -162,10 +190,11 @@ summary(coord_type_model)
 ```{r}
 # effect of community type on EAB abundance
 types_result <- table(ont_eab_data$community_type, ont_eab_data$result)
+types_result
 
 chisq.test(ont_eab_data$community_type, ont_eab_data$result, correct = F)
 
-# effect of community type on EAB abundance over the years
+# effect of community type on EAB detection over the years
 type_model <- glm(as.factor(result)~year * community_type, 
                   family = binomial, data = ont_eab_data)
 summary(type_model)
@@ -175,9 +204,19 @@ summary(type_model)
 ### Model 5: Temperature
 
 ```{r}
-
+temp_model <- glm(as.factor(result)~year + avg_temp, 
+                  family = binomial, data = ont_eab_data)
+summary(temp_model)
 ```
+  
 
+### Model 6: Community Type and Temperature Model
+
+```{r}
+temp_type_model <- glm(as.factor(result)~year * avg_temp * community_type, 
+                  family = binomial, data = ont_eab_data)
+summary(temp_type_model)
+```
 
 
 ## Results
