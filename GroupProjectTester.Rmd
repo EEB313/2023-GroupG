@@ -7,8 +7,12 @@ output: html_document
 
 
 Git add
-  git add -A : add all
-  Halway to being on github
-Git commit
-Git push
-Git status
+  git add -A : add all the changes (clumps it all)
+  Halfway to being on github
+Git commit -m "comments such as changed line 123"
+Git push: pushes local computer onto the online github
+Git status - between steps to ensure it's fully updated!
+
+Before making any changes - first thing you do is git pull to get any changes made by collaborators onto your computer
+
+Keep an eye on the online github! Check commits and changes

@@ -13,6 +13,7 @@ library(tidyverse)
 library(readxl)
 library(lme4)
 library(lmerTest)
+library(wesanderson)
 ```
 
 
@@ -185,7 +186,7 @@ summary(coord_temp_model)
 ```
 
 
-### Model 4: Community Type
+### Model 3: Community Type
 
 ```{r}
 # effect of community type on EAB abundance
@@ -201,7 +202,7 @@ summary(type_model)
 ```
 
 
-### Model 5: Temperature
+### Model 4: Temperature
 
 ```{r}
 temp_model <- glm(as.factor(result)~year + avg_temp, 
@@ -210,7 +211,7 @@ summary(temp_model)
 ```
   
 
-### Model 6: Community Type and Temperature Model
+### Model 5: Community Type and Temperature Model
 
 ```{r}
 temp_type_model <- glm(as.factor(result)~year * avg_temp * community_type, 
@@ -221,29 +222,164 @@ summary(temp_type_model)
 
 ## Results
 
-### Model 4: Community Type
+### Model 1: Time
 
 ```{r}
-ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + geom_boxplot() + 
-  geom_point(size = 0.6, alpha = 0.4) + facet_wrap(~community_type)
-```
+result_colour <- c("#FF0000", "#3333CC")
 
-```{r}
-ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + geom_violin() + facet_wrap(~community_type)
-
+ggplot(ont_eab_data, aes(x = year, fill = result)) +
+  geom_histogram(stat = "count") +
+  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
+  theme_bw() +
+  scale_fill_manual(values = result_colour) +
+  labs(title = "EAB Detection Throughout Time", x = "Year", y = "Observation Count", fill = "Detection Result")
 ```
+As you can see, the observations are skewed through the years. The greatest number of observations happened between the years 2003 and 2010, which corresponds with some of the first recorded incidences of the EAB in North America. The most-important takeaway from this graph is the frequency of observations within this dataset changed significantly more over time than the abundance of EABs did. Furthermore, this change in observation frequency over the years makes it harder to compare and contrast detection rate through the years.
+
+### Model 2: Latitude + Longitude
+
+```{r fig.asp = 0.5, fig.width = 8.5}
+ggplot(ont_eab_data, aes(x = latitude, y = longitude, color = result)) +
+  geom_point(size = 0.8, alpha = 0.6) +
+  theme_bw() +
+  scale_color_manual(values = result_colour) +
+  labs(title = "EAB Detection by Latitude & Longitude", x = "Latitude", y = "Longitude", color = "Detection Result")
+```
+EAB detection is concentrated in one general area!
+
+```{r fig.asp = 0.5, fig.width = 8.5}
+ggplot(ont_eab_data, aes(x = latitude, y = longitude, color = community_type)) +
+  geom_point(size = 0.8, alpha = 0.6) +
+  theme_bw() +
+  scale_color_manual(values = colour) +
+  labs(title = "Community Type by Latitude & Longitude", x = "Latitude", y = "Longitude", color = "Community Type")
+```
+There IS a correlation between coordinates and community type
+
+
+### Model 3: Community Type
 
 ```{r fig.asp = 0.5, fig.width = 8.5}
 ont_eab_data %>% 
-  ggplot(aes(x = year, fill = community_type)) + geom_histogram(binwidth = 1.2) + 
+  ggplot(aes(x = year, fill = community_type)) + 
+  geom_histogram(binwidth = 1.2) + 
   facet_wrap(~result, scales = "free_y") +
   scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  scale_fill_manual(values = colour) +
+  labs(title = "EAB Detection by Year and Community Type", x = "Year", y = "Number of Observations", 
+       fill = "Community Type")
+```
+Note the differences in y-axis scales between "Detected" and "Not Detected", as well as the significantly higher number of observations in the earlier half of the dataset.
 
+```{r}
+ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + 
+  geom_boxplot() + 
+  geom_point(size = 0.6, alpha = 0.4) + facet_wrap(~community_type) +
+  theme_bw() +
+  scale_fill_manual(values = result_colour) +
+  labs(title = "EAB Detection by Year and Community Type", x = "", y = "Year", fill = "Detection Result")
 ```
 
 ```{r}
-ggplot(ont_eab_data, aes(x = result, fill = community_type)) + geom_histogram(stat = "count")
+ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + 
+  geom_violin() + 
+  facet_wrap(~community_type) +
+  theme_bw() +
+  scale_fill_manual(values = result_colour) +
+  labs(title = "EAB Detection by Year and Community Type", x = "", y = "Year", fill = "Detection Result")
 ```
+```{r}
+ggplot(ont_eab_data, aes(x = community_type, y = year, fill = community_type)) + 
+  geom_violin() + 
+  facet_wrap(~result) +
+  theme_bw() +
+  scale_fill_manual(values = colour) +
+  labs(title = "EAB Detection by Year and Community Type", x = "", y = "Year", fill = "Community Type")
+```
+```{r}
+ggplot(ont_eab_data, aes(x = year, y = community_type, fill = community_type)) + 
+  geom_violin() + 
+  facet_wrap(~result) +
+  theme_bw() +
+  scale_fill_manual(values = colour) +
+  labs(title = "EAB Detection by Year and Community Type", x = "Year", y = "", fill = "Community Type")
+```
+
+### Communities Dominating the Observations
+
+```{r}
+community_count <- ont_eab_data %>% 
+  count(community, wt = NULL, sort = TRUE)
+total_dataframe <- cbind(temperature_data, community_count)
+most_observations <- total_dataframe %>% 
+  filter(n >= 200)
+
+ggplot(most_observations, aes(x = community, y = n)) + 
+  geom_point() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "Community", y = "Observations per Community", title = "Number of Observations from Each Community (n ≥ 200)")
+```
+Chatham-Kent Division (rural)
+
+```{r}
+ont_eab_data %>% 
+  filter(community == "CHATHAM-KENT DIVISION") %>% 
+ggplot(aes(x = year, fill = result)) +
+  geom_histogram(stat = "count") +
+  theme_bw() +
+  scale_fill_manual(values = result_colour) +
+  labs(title = "EAB Detection by Year in the Chatham-Kent Division", x = "Year", y = "Number of Observations", fill = "Detection Result")
+```
+Our dataset is dominated by a couple of communities especially during the early years of data collection.
+
+
+### Model 4: Temperature
+
+```{r fig.asp = 0.5, fig.width = 8.5}
+ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_manual(values = result_colour) +
+  theme_bw() +
+  labs(title = "EAB Detection Through Time as a Function of Temperature", x = "Year", y = "Average Temperature (˚C)", color = "Detection Result")
+```
+
+
+### Model 5: Community Type AND Temperature
+
+```{r fig.asp = 0.5, fig.width = 8.5}
+ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) + 
+  geom_point() +
+  facet_wrap(~community_type) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  scale_color_manual(values = result_colour) +
+  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (˚C)", color = "Detection Result")
+```
+
+```{r}
+colour <- c(rural = "forestgreen", urban = "darkgrey")
+
+ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = community_type)) +
+  geom_point() +
+  facet_wrap(~result) +
+  scale_color_manual(values = colour) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (˚C)", color = "Community Type")
+```
+
+
+
+
+
+
+
+
+
 
