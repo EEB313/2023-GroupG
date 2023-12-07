@@ -1,0 +1,78 @@
+---
+title: "Tester Code for Surveillance Data (it did not work)"
+output: github_document
+---
+
+```{r}
+library(readxl)
+library(ggplot2)
+
+# Read the Excel spreadsheet
+ont_eab_data <- read_excel("emerald-ash-borer-surveillance-data-2002-to-2020-en (2).xlsx")
+
+# Plot the effect of "community" on "result"
+community_on_result <- ggplot(ont_eab_data, aes(x = COMMUNITY, y = RESULT)) +
+  geom_boxplot()
+
+community_on_result
+```
+```{r}
+library(dplyr)
+
+temp <- tempfile()
+download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100007-eng.zip", temp)
+canada_census_2021 <- read.csv(unz(temp, "98100007.csv"))
+unlink(temp)
+
+
+ont_population <- canada_census_2021[153:201, c(2, 5, 25)]
+
+# simplify column names
+colnames(ont_population) <- c("community_name", "population_2021", "pop_density_2021")
+
+# Perform a left join to add the columns from ont_population to ont_eab_data
+ont_combined <- left_join(ont_eab_data, ont_population, by = c("COMMUNITY" = "community_name"))
+
+head(ont_combined)
+
+#it didn't work
+```
+```{r}
+#It could be possible to use a logistic regression to model a relationship between the result (whether EAB was detected or not detected)
+
+# Convert the result (dtetecd or not detected) variable to a factor
+ont_eab_data$RESULT <- as.factor(ont_eab_data$RESULT)
+
+# Coding for a logistic regression model
+lr_model <- glm(RESULT ~ COMMUNITY + YEAR, data = ont_eab_data, family = binomial)
+
+# Plot the relationship between "year" and the probability of detection (pod) for each community
+pod_plot <- ggplot(ont_eab_data, aes(x = YEAR, y = fitted(lr_model), color = COMMUNITY)) +
+  geom_point() +
+  geom_smooth(method = "glm", method.args = list(family = binomial), se = FALSE) +
+  labs(x = "Year", y = "Probability of Detection")
+
+pod_plot
+
+#this refused to work based on an aesthetics error?
+```
+
+```{r}
+# maybe we can use a Random Forest Classifier model. This model is meant to construct multiple decision trees and combines their predictions. I want to try predicting the "result" variable based on the "year" variable.The decision tree should help with classifying as either detected or not detected. Each leaf node on the trees generated represents the outcome or prediction.
+
+install.packages("randomForest")
+
+library(readxl)
+library(randomForest)
+
+# Convert the "result" variable to a factor
+ont_eab_data$RESULT <- as.factor(ont_eab_data$RESULT)
+
+# Fit a random forest classifier
+model <- randomForest(RESULT ~ YEAR, data = ont_eab_data)
+
+model
+plot(model)
+
+#detected was labelled correctly, and it doesn't look like the instances of not detected aren't either. this plot doesn't look right...
+```
