@@ -154,6 +154,9 @@ time_community_model <- glm(as.factor(result)~year * community,
 
 anova(time_community_model, test="Chi")
 ```
+```{r}
+anova(time_glm_model, test = "Chi")
+```
 
 
 ### Model 2: Latitude and Longitude
@@ -356,6 +359,16 @@ ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) +
 ```
 
 
+```{r fig.asp = 0.5, fig.width = 15}
+ggplot(ont_eab_data, aes(x = community, y = avg_temp, color = result)) +
+  geom_point() +
+  scale_color_manual(values = result_colour) +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, hjust = 1)) +
+  theme_bw() +
+  labs(title = "EAB Detection Through Time as a Function of Temperature", x = "Year", y = "Average Temperature (˚C)", color = "Detection Result")
+```
+
+
 ### Model 5: Community Type AND Temperature
 
 ```{r fig.asp = 0.5, fig.width = 8.5}
@@ -391,6 +404,15 @@ ggplot(ont_eab_data, aes(x = avg_temp, y = result, fill = community_type)) +
   labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Temperature", y = "Average Annual Temperature (˚C)", color = "Community Type")
 ```
 
+```{r}
+kruskal.test(result ~ avg_temp*community,
+             data = ont_eab_data)
+```
+
+```{r}
+temp_model <- glm(as.factor(result)~ avg_temp + (1|community), family = "binomial", data = ont_eab_data)
+summary(temp_model)
+```
 
 
 
