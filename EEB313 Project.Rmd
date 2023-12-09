@@ -158,6 +158,7 @@ anova(time_glm_model, test = "Chi")
 # effect of time on EAB abundance by community
 time_community_model <- glm(as.factor(result) ~ year * community, 
                       family = binomial, data = ont_eab_data)
+summary(time_community_model)
 
 anova(time_community_model, test="Chi")
 ```
@@ -227,6 +228,7 @@ summary(temp_community_model)
 ```
 ```{r}
 anova(temp_community_model, test = "Chi")
+
 ```
 
 
