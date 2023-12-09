@@ -1,18 +1,18 @@
 ---
 title: "EEB313 Project"
-author: "Group G"
+author: "Group G (Eva Grigorovsky, Jem Barrett, Jessica Underwood, Santhija Jegatheeswaran)"
 output:
   pdf_document: default
   html_notebook: default
 ---
 
-## Packages
+# Packages
 
-```{r setup}
+```{r setup, include = F}
 library(tidyverse)
 library(readxl)
-library(lme4)
-library(lmerTest)
+library(gridExtra)
+library(grid)
 ```
 
 
@@ -21,42 +21,51 @@ library(lmerTest)
 ## Emerald Ash Borer Data
 
 ```{r download_EAB_data}
+# open csv file
 raw_eab_data <- read_excel("emerald-ash-borer-surveillance-data-2002-to-2020-en.xlsx")
 
 # change column names from all uppercase to all lowercase to make it easier to work with
 colnames(raw_eab_data) <- c("latitude", "longitude", "survey", "year",
                             "province", "community", "result")
 
-# separate dataset for Ontario only and keep only necessary columns
+# separate dataset for Ontario only
 ont_eab_data <- raw_eab_data %>% subset(province == "ONTARIO")
+
+# only keep columns for latitude, longitude, year, community, and result
 ont_eab_data <- ont_eab_data[, c(1, 2, 4, 6, 7)]
 
-# remove NAs from community for future matching
-ont_eab_data <- ont_eab_data %>% subset(!is.na(community))
-
-# remove communities with less than 10 observations
+# remove communities with less than 10 observations to limit observation bias
+# by creating new dataframe of communities with 10 or more observations
+# and removing observations from EAB data that do not belong to those communities
 keep_communities <- ont_eab_data %>% group_by(community) %>% count() %>% filter(n >= 10)
-ont_eab_data <- ont_eab_data %>% subset(ont_eab_data$community %in% keep_communities$community)
+ont_eab_data <- ont_eab_data %>% 
+  subset(ont_eab_data$community %in% keep_communities$community)
 ```
 
 
-Some of community names in our EAB data include designations that are common to more than one community (ex. County, District, etc) and although some of the census data names also have this feature, we can't guess whether the corresponding communities will be formatted the same way (ex. will "Bruce County" in our EAB data be written as "Bruce" or "Bruce County" in the census?). However, the designation may help us in our report later on when we have to talk about the different communities. That's why instead of changing our existing community names, I created a new column of the names with the designations removed. We will also do the same thing to the census data after downloading it.
+Some community names in our EAB data include designations that are common to more than one community (ex. County, District, etc). We can't guess whether the corresponding communities in the 2021 census data will be formatted the same way (ex. will "Bruce County" in our EAB data be written as "Bruce" or "Bruce County" in the census data?).
+
+Since the designation may help us in our report later on when we have to talk about the different communities, instead of changing our existing community names, we created a new column of the community names with the designations removed.
 
 ```{r edit_community_names}
+# create new column of community names with designations removed
 ont_eab_data <- ont_eab_data %>% 
   mutate(community_2 = str_replace_all(ont_eab_data$community,
                         c(" COUNTY" = "", " DISTRICT" = "", " DIVISION" = "", 
                           " REGIONAL MUNICIPALITY" = "", " MUNICIPALITY" = "",
                           " UNITED COUNTIES" = "")))
+
+# remove NAs from community names to make mathcing with census and temperature data easier
+ont_eab_data <- ont_eab_data %>% subset(!is.na(community))
 ```
 
 
 ## Population Density Data
 
-To determine whether the communities in our EAB data are urban or rural, we decided to use the Canadian 2021 census from Statistics Canada. We found a dataset containing only census information for population centres in Canada. According to StatCan, population centres are communities that have a population of at least 1000 people and a population density of at least 400 people per square kilometre. Locations that don't meet these requirements are considered rural. If the communities from our EAB data are found in the population centres data, we can identify them as urban, and if they are missing, they will be rural. Since the dataset is for all of Canada, we will also subset to only population centres in Ontario.
+To determine whether the communities in our EAB data are urban or rural, we are using the Canadian 2021 census from Statistics Canada (StatCan). We found a dataset containing only census information for population centres in Canada. According to StatCan, population centres are communities that have a population of at least 1000 people and a population density of at least 400 people per square kilometre. Locations that don't meet these requirements are considered rural. If the communities from our EAB data were found in the population centres data, we identified them as urban, otherwise they were labelled rural.
 
 ```{r download_urban_data}
-# download census 2021 data for population centres and unzip file
+# download zipped file with census 2021 data for population centres and unzip file
 temp <- tempfile() 
 download.file("https://www150.statcan.gc.ca/n1/tbl/csv/98100011-eng.zip", temp)
 census_2021_pop_centres <- read.csv(unz(temp, "98100011.csv"))
@@ -66,17 +75,16 @@ unlink(temp)
 
 ```{r subsetting_census_data}
 # subset dataframe to Ontario only and 
-# keep name, population, and population density columns
+# keep only name, population, and population density columns
 ## to exclude the rows for the provinces themselves, the chosen rows are
-## 1 after the Ontario row and 1 before the Manitoba row
-census_2021_pop_centres <- census_2021_pop_centres[380:681, c(2, 3, 5, 17)]
+## 1 row after the Ontario row and 1 row before the Manitoba row
+census_2021_pop_centres <- census_2021_pop_centres[380:681, c(2, 5, 17)]
 
-# simplify column names
-colnames(census_2021_pop_centres) <- c("community_name", "DGUID", 
+# simplify column names for ease of use
+colnames(census_2021_pop_centres) <- c("community_name", 
                                        "population_2021", "pop_density_2021")
 
-
-# new column with designations removed
+# create new column of community names with designations removed
 census_2021_pop_centres <- census_2021_pop_centres %>% 
   filter(!is.na(community_name)) %>% 
   mutate(community_name_2 = str_replace_all(census_2021_pop_centres$community_name,
@@ -85,24 +93,29 @@ census_2021_pop_centres <- census_2021_pop_centres %>%
 ```
 
 
-Now that we have data for the urban communities, the next step is to match the community names from our EAB data to the census data and determine the community type. We made an empty column 'community_type' in our EAB data so that we can use a for loop to populate it. 
+After cleaning the census data, we matched the community names from our EAB data to the census data and populated new column with the community type. 
 
 ```{r match_community_names}
-ont_eab_data$community_type <- NA  # new column for community type
+# new column in EAB data for community type
+ont_eab_data$community_type <- NA
 
-for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
+# look through every row in EAB data to match community names and add community type
+for (i in 1:nrow(ont_eab_data)) { 
   
   j <- which(tolower(ont_eab_data$community_2[i]) == 
              tolower(census_2021_pop_centres$community_name_2))
-  # find this row's community in column of census data community names
-  # searching for identical names -> NO partial matches
-  # returns row number of matching name or integer (0) if no matching name found
+  # find this row's community name in census data community names column
+  # search for identical names -> NO partial matches
+  # return row number of matching name or integer (0) if no matching name found
+  # use lowercase letters because both datasets use different capitalization
   
-  if (!identical(j, integer (0))) {   # if row number returned
+  if (!identical(j, integer (0))) {
     ont_eab_data$community_type[i] <- "urban"
+    # if row number returned, matching community name was found so label "urban"
     
   } else {
-    ont_eab_data$community_type[i] <- "rural"
+    ont_eab_data$community_type[i] <- "rural" 
+    # if integer(0) returned, no matching commmunity name found so label "rural"
     
   }
     
@@ -113,67 +126,95 @@ for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
 
 ## Temperature Data
 
+To get the temperature data, we created a new excel file with a list of the communities in our EAB data, their longitude and latitude, and the year the community is first mentioned in the dataset. We manually searched through historical climate data for Ontario and matched the coordinates for each community to the closest weather station. We then took the average of the monthly temperatures for the weather station in the associated year and labelled it in the dataset as "avg_temp". 
+
 ```{r download_weather_data}
+# download dataset with avgerage temperatures of communities
 temperature_data <- read_excel("EEB313_EAB_weather_1.xlsx")
-temperature_data <- temperature_data[,1:3] # remove unnecessary columns
+
+# keep columns for community name, year, and average temperature
+temperature_data <- temperature_data[, 1:3] 
+
+# remove communities from temperature data that have been removed 
+# from EAB data earlier
+temperature_data <- temperature_data %>% 
+  subset(tolower(temperature_data$Community) %in% tolower(keep_communities$community))
 ```
 
-```{r add_temp_to_primary_data}
-ont_eab_data$avg_temp <- NA  # new column for temperature
+Using the new temperature data, we matched the community names with those from our EAB data to add the average annual temperatures to the relevant community in our EAB data.
 
-for (i in 1:nrow(ont_eab_data)) {  # look through every row in our EAB data
+```{r add_temp_to_primary_data}
+ont_eab_data$avg_temp <- NA  # new column in EAB data for temp
+
+# look through every row in our EAB data to match community names and add avg temp
+for (i in 1:nrow(ont_eab_data)) { 
   
   k <- which(tolower(ont_eab_data$community[i]) == 
              tolower(temperature_data$Community))
+  # find this row's community name in census data community names column
   # return row number of matching community name
-  
-  ont_eab_data$avg_temp[i] <- temperature_data$Avg_Temp[k]
-      
+  # use lowercase letters because both datasets use different capitalization
+ 
+   ont_eab_data$avg_temp[i] <- temperature_data$Avg_Temp[k]
+  # add avg temp value from temperature data to EAB data for matching community name
       
 }
 
 ```
 
 
-## Methods
+# Methods
 
-### Model 1: Time
+## Model 1a: EAB Detection over Time
 
 Has EAB abundance changed over the years in different Ontario communities?
 
+Notes:
 * Number of observations for each community differ
-* Locations within each community are different (with some same locations between years)
-
 
 ```{r result_on_year_model}
-# effect of time on EAB abundance
+# effect of time on EAB detection
 time_glm_model <- glm(as.factor(result) ~ year, 
                       family = binomial, data = ont_eab_data)
 summary(time_glm_model)
-anova(time_glm_model, test = "Chi")
 ```
 
-```{r result_on_year_community_model}
+```{r year_detection_odds}
+# odds ratio of EAB detection for 1 year increase
+## coefficient estimate for year -> log odds of detection occurring
+year_log_odds <- coefficients(summary(time_glm_model))[2, 1]
 
+## calculate exponential of log odds to get odds ratio
+year_odds_ratio <- exp(year_log_odds)
+
+## percent change in odds of detection for every year increase
+year_percent_change_odds <- (year_odds_ratio - 1) * 100
+round(year_percent_change_odds)
+```
+
+
+## Model 1b: EAB Detection over Time by Community
+
+```{r result_on_year_community_model}
 # effect of time on EAB abundance by community
+# used anova because summary provided p-values close to 1 due to small sample size
 time_community_model <- glm(as.factor(result) ~ year * community, 
                       family = binomial, data = ont_eab_data)
-
 anova(time_community_model, test="Chi")
 ```
 
 
-### Model 2: Latitude and Longitude
+## Model 2a: EAB Detection over Time by Latitude and Longitude
 
 ```{r result_on_year_coords_model}
-# effect of latitude and longitude and their interaction on EAB detection
+# effect of year, latitude, longitude and their interaction on EAB detection
 coordinates_glm_model <- glm(as.factor(result) ~ year * latitude * longitude, 
                              family = binomial, data = ont_eab_data)
 summary(coordinates_glm_model)
 ```
 
 
-#### Is there a relationship between coordinates and community type?
+## Model 2b: Community Type by Coordinates
 
 ```{r communitytype_on_coords_model}
 # latitude and longitude and their interaction on community type
@@ -183,7 +224,7 @@ summary(coord_type_model)
 ```
 
 
-#### Is there a relationship between coordinates and mean temperature?
+## Model 2c: Average Temperature by Coordinates
 
 ```{r temp_on_coords_model}
 # latitude and longitude and their interaction on mean temperature
@@ -192,7 +233,7 @@ summary(coord_temp_model)
 ```
 
 
-### Model 3: Community Type
+## Table 2: EAB Detections by Community Type
 
 ```{r communitytype_detections_table}
 # effect of community type on EAB abundance
@@ -200,97 +241,203 @@ types_result <- table(ont_eab_data$community_type, ont_eab_data$result)
 types_result
 ```
 
+
+## Model 3a: EAB Detections by Community Type
+
 ```{r result_on_communitytype_model}
-# effect of community type on EAB detection over the years
+# effect of community type on EAB detection
 community_type_model <- glm(as.factor(result) ~ community_type, 
                   family = binomial, data = ont_eab_data)
 summary(community_type_model)
 ```
 
 
-### Model 4: Temperature
+```{r urban_detection_odds}
+# odds ratio of EAB detection in urban communities compared to rural
+## coefficient estimate for urban community type -> log odds of detection occurring
+urban_log_odds <- coefficients(summary(community_type_model))[2, 1]
 
-```{r result_on_year_temp_model}
-temp_model <- glm(as.factor(result) ~  year + avg_temp, 
-                  family = binomial, data = ont_eab_data)
-summary(temp_model)
+## calculate exponential of log odds to get odds ratio
+urban_odds_ratio <- exp(urban_log_odds)
+
+## percent change in odds of detection in urban community type
+urban_percent_change_odds <- (urban_odds_ratio - 1) * 100
+round(urban_percent_change_odds)
 ```
-```{r result_on_year_temp_model}
+
+Therefore, the odds of EAB detection in urban communities decrease by 81% compared to rural communities.
+
+
+## Model 4a: EAB Detection by Average Temperature
+
+```{r result_on_temp_model}
+# effect of avg temp on EAB detection
 temp_only_model <- glm(as.factor(result) ~  avg_temp, 
                   family = binomial, data = ont_eab_data)
 summary(temp_only_model)
 ```
+
+```{r}
+# odds ratio of EAB detection for 1 unit increase in avg temp
+## coefficient estimate for avg temp -> log odds of detection occurring
+temp_log_odds <- coefficients(summary(temp_only_model))[2, 1]
+
+## calculate exponential of log odds to get odds ratio
+temp_odds_ratio <- exp(temp_log_odds)
+
+## percent change in odds of detection for 1 unit increase in avg temp
+temp_percent_change_odds <- (temp_odds_ratio - 1) * 100
+round(temp_percent_change_odds)
+```
+
+
+## Model 4b: EAB Detection over Time by Average Temperature
+
 ```{r result_on_year_temp_model}
+# effect of avg temp on EAB detection over the years
+temp_model <- glm(as.factor(result) ~  year + avg_temp, 
+                  family = binomial, data = ont_eab_data)
+summary(temp_model)
+```
+
+
+## Model 4c: EAB Detection by Average Temperature and Community
+
+```{r result_on_temp_community_model}
+# effect of avg temp on EAB detection by community
 temp_community_model <- glm(as.factor(result) ~ avg_temp + community, 
                   family = binomial, data = ont_eab_data)
 summary(temp_community_model)
 ```
-```{r}
-anova(temp_community_model, test = "Chi")
-```
-
-
-### Model 5: Community Type and Temperature Model
-
-```{r result_on_year_communitytype_model}
-temp_type_model <- glm(as.factor(result) ~ avg_temp * community_type, 
-                  family = binomial, data = ont_eab_data)
-summary(temp_type_model)
-anova(temp_type_model, test = "Chi")
-```
 
 
 
-## Results
+# Results
 
-### Model 1: Time
+## Fig. 1a: EAB Detection over Time
 
 ```{r detections_over_time_graph}
 result_colour <- c("#FF0000", "#3333CC")
 
-ggplot(ont_eab_data, aes(x = year, fill = result)) +
+# graph of EAB detections over the years, filled by whether EAB were detected or not
+detections_over_time_graph <- ont_eab_data %>% 
+  ggplot(aes(x = year, fill = result)) +
   geom_histogram(stat = "count") +
   scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
   theme_bw() +
   scale_fill_manual(values = result_colour) +
-  labs(title = "EAB Detection Throughout Time", x = "Year", y = "Observation Count", fill = "Detection Result")
+  labs(title = "EAB Detection Throughout Time", 
+       x = "Year", y = "Observation Count", 
+       fill = "Detection Result", tag = "(a)")
 ```
+
 As you can see, the observations are skewed through the years. The greatest number of observations happened between the years 2003 and 2010, which corresponds with some of the first recorded incidences of the EAB in North America. The most-important takeaway from this graph is the frequency of observations within this dataset changed significantly more over time than the abundance of EABs did. Furthermore, this change in observation frequency over the years makes it harder to compare and contrast detection rate through the years.
 
-### Model 2: Latitude + Longitude
+
+### Fig. 1b: Communities Dominating the Observations
+
+```{r observations_by_community_graph}
+# create dataframe of communities with associated number of observations
+community_count <- ont_eab_data %>% count(community, wt = NULL, sort = TRUE)
+
+# create dataframe by binding temperature data to dataframe of community observation counts
+total_dataframe <- cbind(temperature_data, community_count)
+
+# only keep communities with more than 200 observations in this dataframe
+most_observations <- total_dataframe %>% filter(n >= 200)
+
+
+# plot these communities with their observation counts to examine how number
+# of observations is skewed across communities
+# with some communities dominating the data
+observations_by_community_graph <- most_observations %>% 
+  ggplot(aes(x = community, y = n)) + 
+  geom_point() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(title = "Number of Observations from Each Community (200+)",
+       x = "Community", y = "Observations per Community", 
+       tag = "(b)")
+```
+
+Note that Chatham-Kent Division (rural) dominates the observations with much more data compared to the rest of the communities.
+
+
+## Model 1c: Chatham-Kent Observations
+
+```{r detections_chatham_kent_graph}
+ont_eab_data %>% 
+  filter(community == "CHATHAM-KENT DIVISION") %>% 
+ggplot(aes(x = year, fill = result)) +
+  geom_histogram(stat = "count") +
+  theme_bw() +
+  scale_fill_manual(values = result_colour) +
+  labs(title = "EAB Detection by Year in the Chatham-Kent Division", 
+       x = "Year", y = "Number of Observations", 
+       fill = "Detection Result")
+```
+
+Our dataset is dominated by a couple of communities especially during the early years of data collection.
+
+
+## Fig. 2a: Latitude and Longitude
 
 ```{r detections_by_coords_graph, fig.asp = 0.5, fig.width = 8.5}
-ggplot(ont_eab_data, aes(x = longitude, y = latitude, color = result)) +
+# plot the coordinates of the observations and colour by whether EAB were detected or not
+detections_by_coords_graph <- ont_eab_data %>% 
+  ggplot(aes(x = longitude, y = latitude, colour = result)) +
   geom_point(size = 0.8, alpha = 0.6) +
   theme_bw() +
   scale_color_manual(values = result_colour) +
-  labs(title = "EAB Detection in Ontario by Longitude & Latitude", x = "Longitude", y = "Latitude", color = "Detection Result")
+  labs(title = "EAB Detection in Ontario by Longitude & Latitude", 
+       x = "Longitude", y = "Latitude", 
+       colour = "Detection Result", tag = "(a)")
 ```
-EAB detection is concentrated in one general area!
+
+We can see that EAB detection is concentrated in one general area (southern Ontario).
+
+
+## Fig. 2b: Community Type by Coordinates
 
 ```{r communitytype_by_coords_model, fig.asp = 0.5, fig.width = 8.5}
 colour <- c(rural = "forestgreen", urban = "darkgrey")
 
-ggplot(ont_eab_data, aes(x = longitude, y = latitude, color = community_type)) +
+# plot the coordinates of the observations and colour by community type
+communitytype_by_coords_model <- ont_eab_data %>% 
+  ggplot(aes(x = longitude, y = latitude, colour = community_type)) +
   geom_point(size = 0.8, alpha = 0.6) +
   theme_bw() +
   scale_color_manual(values = colour) +
-  labs(title = "Community Type in Ontario by Longitude & Latitude", x = "Longitude", y = "Latitude", color = "Community Type")
+  labs(title = "Community Type in Ontario by Longitude & Latitude", 
+       x = "Longitude", y = "Latitude", 
+       colour = "Community Type", tag = "(b)")
 ```
-There IS a correlation between coordinates and community type
+
+Note that there IS a correlation between coordinates and community type.
+
+
+## Fig. 2c: Average Temperature by Coordinates
 
 ```{r temp_by_coords_graph, fig.asp = 0.5, fig.width = 8.5}
-ggplot(ont_eab_data, aes(x = longitude, y = latitude, color = avg_temp)) +
+# plot the coordinates of the observations and colour by average temperature for each locations
+temp_by_coords_graph <- ont_eab_data %>% 
+  ggplot(aes(x = longitude, y = latitude, color = avg_temp)) +
   geom_point(size = 1, alpha = 0.3) +
   theme_bw() +  
-  labs(title = "Annual Average Temperature in Ontario by Longitude & Latitude", x = "Longitude", y = "Latitude", color = "Average Annual Temperature (˚C)")
+  labs(title = "Annual Average Temperature in Ontario by Longitude & Latitude", 
+       x = "Longitude", y = "Latitude", 
+       colour = "Average Annual \nTemperature (degree C)", tag = "(c)")
 ```
 
+We can see a trend that southern Ontario has higher average annual temperatures compared to northern Ontario.
 
-### Model 3: Community Type
+
+## Fig. 3a: Community Type
 
 ```{r detection_by_year_community_type_graph, fig.asp = 0.5, fig.width = 8.5}
-ont_eab_data %>% 
+# graph observations over the years, sorting by community type
+## facet_wrap() by whether EAB were detected or not to compare result to community type
+detection_by_year_community_type_graph <- ont_eab_data %>% 
   ggplot(aes(x = year, fill = community_type)) + 
   geom_histogram(binwidth = 1.2) + 
   facet_wrap(~result, scales = "free_y") +
@@ -298,21 +445,126 @@ ont_eab_data %>%
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   scale_fill_manual(values = colour) +
-  labs(title = "EAB Detection by Year and Community Type", x = "Year", y = "Number of Observations", 
-       fill = "Community Type")
+  labs(title = "EAB Detection by Year and Community Type", 
+       x = "Year", y = "Number of Observations", 
+       fill = "Community Type", tag = "(c)")
 ```
+
 Note the differences in y-axis scales between "Detected" and "Not Detected", as well as the significantly higher number of observations in the earlier half of the dataset.
 
+
+## Fig. 3b: Community Type
+
 ```{r detection_by_year_community_type_graph2}
-ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + 
+detection_by_year_community_type_boxplot <- ont_eab_data %>% 
+  ggplot(aes(x = result, y = year, fill = result)) + 
   geom_boxplot() + 
   geom_point(size = 0.6, alpha = 0.4) + facet_wrap(~community_type) +
   theme_bw() +
+  theme(axis.text.x = element_text(angle = 35, vjust = 0.5)) +
   scale_fill_manual(values = result_colour) +
-  labs(title = "EAB Detection by Year and Community Type", x = "", y = "Year", fill = "Detection Result")
+  labs(title = "EAB Detection by Year \nand Community Type", 
+       x = "Result", y = "Year", 
+       fill = "Detection Result", tag = "(b)")
 ```
 
-```{r detection_by_year_community_type_graph3}
+
+## Fig. 4a: Temperature and EAB Detection
+
+```{r detections_by_year_temp_graph2, fig.asp = 0.5, fig.width = 15}
+# scatter plot of avg temp for each community sorted by 
+# whether EAB were detected or not
+detections_by_year_temp_graph <- ont_eab_data %>% 
+  ggplot(aes(x = community, y = avg_temp, color = result)) +
+  geom_point() +
+  scale_color_manual(values = result_colour) +
+  theme_bw() +
+  theme(axis.text.x=element_blank()) +
+  labs(title = "EAB Detection Through Time as a Function of Temperature", 
+       x = "Community", y = "Average Temperature (degree C)", 
+       colour = "Detection Result", tag = "(a)")
+```
+
+
+# Figure 1
+
+```{r figure_1, fig.asp = 1.5, fig.width = 8, echo = F}
+figure_title <- "Figure 1: EAB Data Visualizations"
+figure_caption <- str_wrap("Fig. 1. Visualizing the EAB Data (a) Graph of EAB detection over the years, colour-coded by whether EAB were detected or not for each observation. Note how the number of total observations decreases sharply after 2006 and the number of EAB detections are barely visible given the high number of undetected observations, and (b) Number of observations plotted for communities with 200 or more observations to observe which communities carry the data. Note Chatham-Kent Division has more observations then the rest of the communities, with approximately 12,500 observations out of the total 37,801 observations in our data.",
+                           width = 103)
+
+grid.arrange(detections_over_time_graph,
+             observations_by_community_graph, nrow = 2,
+             top = textGrob(figure_title, x = 0, y = 0.5,
+                            just = "left", gp = gpar(fontsize = 18)),
+             bottom = textGrob(figure_caption, x = 0, y = 0.5,
+                               just = "left"))
+
+```
+
+
+# Figure 2
+
+```{r figure_2, fig.asp = 1.5, fig.width = 8, echo = F}
+figure_2_title <- "Figure 2: Longitude and Latitude"
+figure_2_caption <- str_wrap("Fig. 2. Visualizing influence of geographical coordinates of observations on (a) EAB detection, (b) community type, and (c) average annual temperature.", 
+                             width = 103)
+
+grid.arrange(detections_by_coords_graph, communitytype_by_coords_model, 
+             temp_by_coords_graph, nrow = 3, 
+             top = textGrob(figure_2_title, x = 0, y = 0.5, 
+                            just = "left", gp = gpar(fontsize = 18)), 
+             bottom = textGrob(figure_2_caption, x = 0, y = 0.5, 
+                               just = "left"))
+
+```
+
+
+# Figure 3
+
+```{r figure_3, fig.asp = 1.2, fig.width = 8, echo = F}
+# turn EAB detections by community type table into tableGrob
+# so that grid.arrange() can work with it
+communitytype_detections <- tableGrob(types_result)
+
+figure_3_title <- "Figure 3: Community Type and EAB Detections"
+figure_3_caption <- str_wrap("Fig. 3. (a) Number of EAB detected vs not detected for urban and rural community types, (b) boxplot showing EAB detection over the years for each community type, and (c) histogram of observations over the years sorted by community type and whether EAB were detected or not.", 
+                             width = 103)
+
+grid.arrange(communitytype_detections, detection_by_year_community_type_boxplot,
+             detection_by_year_community_type_graph, ncol = 2, 
+             layout_matrix = cbind(c(1, 3), c(2, 3)), 
+             widths = c(1, 1.3), heights = c(3, 3),
+             top = textGrob(figure_3_title, x = 0, y = 0.5, 
+                            just = "left", gp = gpar(fontsize = 18)), 
+             bottom = textGrob(figure_3_caption, x = 0, y = 0.5, 
+                               just = "left"))
+
+```
+
+
+# Figure 4
+
+```{r figure_4, fig.asp = 1.5, fig.width = 8, echo = F}
+figure_4_title <- "Figure 4: Temperature and EAB Detections"
+figure_4_caption <- str_wrap("Fig. 4. (a) Comparison of average annual temperatures for the Ontario communities with EAB detections coloured in red.", 
+                             width = 103)
+
+grid.arrange(detections_by_year_temp_graph, nrow = 2, 
+             top = textGrob(figure_4_title, x = 0, y = 0.5, 
+                            just = "left", gp = gpar(fontsize = 18)), 
+             bottom = textGrob(figure_4_caption, x = 0, y = 0.5, 
+                               just = "left"))
+
+```
+
+
+
+# EXTRA GRAPHS
+
+## Fig. 3c: Community Type
+
+```{r detection_by_year_community_type_graph3, eval = F}
 ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + 
   geom_violin() + 
   facet_wrap(~community_type) +
@@ -322,7 +574,9 @@ ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) +
 ```
 
 
-```{r detection_by_year_community_type_graph4}
+## Fig. 3d: Community Type
+
+```{r detection_by_year_community_type_graph4, eval = F}
 ggplot(ont_eab_data, aes(x = community_type, y = year, fill = community_type)) + 
   geom_violin() + 
   facet_wrap(~result) +
@@ -332,7 +586,9 @@ ggplot(ont_eab_data, aes(x = community_type, y = year, fill = community_type)) +
 ```
 
 
-```{r detection_by_year_community_type_graph5}
+## Fig. 3e: Community Type
+
+```{r detection_by_year_community_type_graph5, eval = F}
 ggplot(ont_eab_data, aes(x = year, y = community_type, fill = community_type)) + 
   geom_violin() + 
   facet_wrap(~result) +
@@ -344,60 +600,21 @@ ggplot(ont_eab_data, aes(x = year, y = community_type, fill = community_type)) +
 ```
 
 
-### Communities Dominating the Observations
-
-```{r observations_by_community_graph}
-community_count <- ont_eab_data %>% 
-  count(community, wt = NULL, sort = TRUE)
-total_dataframe <- cbind(temperature_data, community_count)
-most_observations <- total_dataframe %>% 
-  filter(n >= 200)
-
-ggplot(most_observations, aes(x = community, y = n)) + 
-  geom_point() +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  labs(x = "Community", y = "Observations per Community", title = "Number of Observations from Each Community (n ≥ 200)")
-```
-Chatham-Kent Division (rural)
-
-```{r detections_chatham_kent_graph}
-ont_eab_data %>% 
-  filter(community == "CHATHAM-KENT DIVISION") %>% 
-ggplot(aes(x = year, fill = result)) +
-  geom_histogram(stat = "count") +
-  theme_bw() +
-  scale_fill_manual(values = result_colour) +
-  labs(title = "EAB Detection by Year in the Chatham-Kent Division", x = "Year", y = "Number of Observations", fill = "Detection Result")
-```
-Our dataset is dominated by a couple of communities especially during the early years of data collection.
-
-
 ### Model 4: Temperature
 
-```{r detections_by_year_temp_graph, fig.asp = 0.5, fig.width = 8.5}
+```{r detections_by_year_temp_graph, fig.asp = 0.5, fig.width = 8.5, eval = F}
 ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) +
   geom_point() +
   geom_smooth(method = "glm", family = "binomial", se = FALSE) +
   scale_color_manual(values = result_colour) +
   theme_bw() +
-  labs(title = "EAB Detection Through Time as a Function of Temperature", x = "Year", y = "Average Temperature (˚C)", color = "Detection Result")
-```
-
-
-```{r detections_by_year_temp_graph2, fig.asp = 0.5, fig.width = 15}
-ggplot(ont_eab_data, aes(x = community, y = avg_temp, color = result)) +
-  geom_point() +
-  scale_color_manual(values = result_colour) +
-  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, hjust = 1)) +
-  theme_bw() +
-  labs(title = "EAB Detection Through Time as a Function of Temperature", x = "Year", y = "Average Temperature (˚C)", color = "Detection Result")
+  labs(title = "EAB Detection Through Time as a Function of Temperature", x = "Year", y = "Average Temperature (degree C)", color = "Detection Result")
 ```
 
 
 ### Model 5: Community Type AND Temperature
 
-```{r detections_by_year_temp_type_graph, fig.asp = 0.5, fig.width = 8.5}
+```{r detections_by_year_temp_type_graph, fig.asp = 0.5, fig.width = 8.5, eval = F}
 ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) + 
   geom_point() +
   facet_wrap(~community_type) +
@@ -405,10 +622,10 @@ ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) +
   scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   scale_color_manual(values = result_colour) +
-  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (˚C)", color = "Detection Result")
+  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (degree C)", color = "Detection Result")
 ```
 
-```{r detections_by_year_temp_type_graph2}
+```{r detections_by_year_temp_type_graph2, eval = F}
 ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = community_type)) +
   geom_point() +
   facet_wrap(~result) +
@@ -417,23 +634,14 @@ ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = community_type)) +
   geom_smooth(method = "lm", se = FALSE) +
   scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (˚C)", color = "Community Type")
+  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (degree C)", color = "Community Type")
 ```
 
-```{r detections_by_year_temp_type_graph3}
+```{r detections_by_year_temp_type_graph3, eval = F}
 ggplot(ont_eab_data, aes(x = avg_temp, y = result, fill = community_type)) +
   geom_violin() +
   scale_fill_manual(values = colour) +
   theme_bw() +
-  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Temperature", y = "Average Annual Temperature (˚C)", color = "Community Type")
+  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Temperature", y = "Average Annual Temperature (degree C)", color = "Community Type")
 ```
-
-
-
-
-
-
-
-
-
 
