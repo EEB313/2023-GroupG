@@ -165,7 +165,7 @@ for (i in 1:nrow(ont_eab_data)) {
 
 # Methods
 
-## Model 1a: EAB Detection over Time
+## Model 1: EAB Detection over Time
 
 Has EAB abundance changed over the years in different Ontario communities?
 
@@ -193,7 +193,7 @@ round(year_percent_change_odds)
 ```
 
 
-## Model 1b: EAB Detection over Time by Community
+## Model 2: EAB Detection over Time by Community
 
 ```{r result_on_year_community_model}
 # effect of time on EAB abundance by community
@@ -204,7 +204,7 @@ anova(time_community_model, test="Chi")
 ```
 
 
-## Model 2a: EAB Detection over Time by Latitude and Longitude
+## Model 2b: EAB Detection over Time by Latitude and Longitude
 
 ```{r result_on_year_coords_model}
 # effect of year, latitude, longitude and their interaction on EAB detection
@@ -214,7 +214,7 @@ summary(coordinates_glm_model)
 ```
 
 
-## Model 2b: Community Type by Coordinates
+## Model 2c: Community Type by Coordinates
 
 ```{r communitytype_on_coords_model}
 # latitude and longitude and their interaction on community type
@@ -224,7 +224,7 @@ summary(coord_type_model)
 ```
 
 
-## Model 2c: Average Temperature by Coordinates
+## Model 2d: Average Temperature by Coordinates
 
 ```{r temp_on_coords_model}
 # latitude and longitude and their interaction on mean temperature
@@ -242,7 +242,7 @@ types_result
 ```
 
 
-## Model 3a: EAB Detections by Community Type
+## Model 3: EAB Detections by Community Type
 
 ```{r result_on_communitytype_model}
 # effect of community type on EAB detection
@@ -268,7 +268,7 @@ round(urban_percent_change_odds)
 Therefore, the odds of EAB detection in urban communities decrease by 81% compared to rural communities.
 
 
-## Model 4a: EAB Detection by Average Temperature
+## Model 4: EAB Detection by Average Temperature
 
 ```{r result_on_temp_model}
 # effect of avg temp on EAB detection
@@ -301,7 +301,7 @@ summary(temp_model)
 ```
 
 
-## Model 4c: EAB Detection by Average Temperature and Community
+## Model 5: EAB Detection by Average Temperature and Community
 
 ```{r result_on_temp_community_model}
 # effect of avg temp on EAB detection by community
@@ -310,6 +310,15 @@ temp_community_model <- glm(as.factor(result) ~ avg_temp + community,
 summary(temp_community_model)
 ```
 
+
+## Model 6: Community Type and Temperature Model
+
+```{r result_on_year_communitytype_model}
+# effect of avg temp on EAB detection by community type
+temp_type_model <- glm(as.factor(result) ~ avg_temp * community_type, 
+                  family = binomial, data = ont_eab_data)
+summary(temp_type_model)
+```
 
 
 # Results
