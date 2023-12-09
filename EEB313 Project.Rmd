@@ -507,7 +507,9 @@ detections_by_year_temp_graph <- ont_eab_data %>%
 ```
 
 
-# Figure 1
+# Figures for Report
+
+## Figure 1: EAB Data Visualizations
 
 ```{r figure_1, fig.asp = 1.5, fig.width = 8, echo = F}
 figure_title <- "Figure 1: EAB Data Visualizations"
@@ -524,11 +526,11 @@ grid.arrange(detections_over_time_graph,
 ```
 
 
-# Figure 2
+## Figure 2: Longitude and Latitude
 
 ```{r figure_2, fig.asp = 1.5, fig.width = 8, echo = F}
 figure_2_title <- "Figure 2: Longitude and Latitude"
-figure_2_caption <- str_wrap("Fig. 2. Visualizing influence of geographical coordinates of observations on (a) EAB detection, (b) community type, and (c) average annual temperature.", 
+figure_2_caption <- str_wrap("Fig. 2. Visualizing influence of geographical coordinates of observations on (a) EAB detection, (b) community type, and (c) average annual temperature. The longitude and latitude of EAB detections were found to be statistically significant to community type (GLM P < 0.001) and average annual temperature (GLM P < 0.001) of the communities. Note how EAB detections are clustered in southern Ontario, where we can observe more rural communities and higher average annual temperatures.", 
                              width = 103)
 
 grid.arrange(detections_by_coords_graph, communitytype_by_coords_model, 
@@ -541,7 +543,7 @@ grid.arrange(detections_by_coords_graph, communitytype_by_coords_model,
 ```
 
 
-# Figure 3
+## Figure 3: Community Type and EAB Detections
 
 ```{r figure_3, fig.asp = 1.2, fig.width = 8, echo = F}
 # turn EAB detections by community type table into tableGrob
@@ -549,7 +551,7 @@ grid.arrange(detections_by_coords_graph, communitytype_by_coords_model,
 communitytype_detections <- tableGrob(types_result)
 
 figure_3_title <- "Figure 3: Community Type and EAB Detections"
-figure_3_caption <- str_wrap("Fig. 3. (a) Number of EAB detected vs not detected for urban and rural community types, (b) boxplot showing EAB detection over the years for each community type, and (c) histogram of observations over the years sorted by community type and whether EAB were detected or not.", 
+figure_3_caption <- str_wrap("Fig. 3. (a) Number of EAB detected vs not detected for urban and rural community types, (b) boxplot showing EAB detection over the years for each community type, and (c) histogram of observations over the years sorted by community type and whether EAB were detected or not. Note how in the boxplot, the number of EAB detections in rural communities lasts for several years whereas EAB detections in urban communities last a shorter time.", 
                              width = 103)
 
 grid.arrange(communitytype_detections, detection_by_year_community_type_boxplot,
@@ -564,11 +566,11 @@ grid.arrange(communitytype_detections, detection_by_year_community_type_boxplot,
 ```
 
 
-# Figure 4
+## Figure 4: Temperature and EAB Detections
 
 ```{r figure_4, fig.asp = 1.5, fig.width = 8, echo = F}
 figure_4_title <- "Figure 4: Temperature and EAB Detections"
-figure_4_caption <- str_wrap("Fig. 4. (a) Comparison of average annual temperatures for the Ontario communities with EAB detections coloured in red.", 
+figure_4_caption <- str_wrap("Fig. 4. (a) Comparison of average annual temperatures for the Ontario communities with EAB detections coloured in red. Communities with higher average annual temperatures were more likely to have EAB detections, and as the average temperature decreases, EAB detections become sparser.", 
                              width = 103)
 
 grid.arrange(detections_by_year_temp_graph, nrow = 2, 
@@ -578,91 +580,3 @@ grid.arrange(detections_by_year_temp_graph, nrow = 2,
                                just = "left"))
 
 ```
-
-
-
-# EXTRA GRAPHS
-
-## Fig. 3c: Community Type
-
-```{r detection_by_year_community_type_graph3, eval = F}
-ggplot(ont_eab_data, aes(x = result, y = year, fill = result)) + 
-  geom_violin() + 
-  facet_wrap(~community_type) +
-  theme_bw() +
-  scale_fill_manual(values = result_colour) +
-  labs(title = "EAB Detection by Year and Community Type", x = "", y = "Year", fill = "Detection Result")
-```
-
-
-## Fig. 3d: Community Type
-
-```{r detection_by_year_community_type_graph4, eval = F}
-ggplot(ont_eab_data, aes(x = community_type, y = year, fill = community_type)) + 
-  geom_violin() + 
-  facet_wrap(~result) +
-  theme_bw() +
-  scale_fill_manual(values = colour) +
-  labs(title = "EAB Detection by Year and Community Type", x = "", y = "Year", fill = "Community Type")
-```
-
-
-## Fig. 3e: Community Type
-
-```{r detection_by_year_community_type_graph5, eval = F}
-ggplot(ont_eab_data, aes(x = year, y = community_type, fill = community_type)) + 
-  geom_violin() + 
-  facet_wrap(~result) +
-  theme_bw() +
-  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  scale_fill_manual(values = colour) +
-  labs(title = "EAB Detection by Year and Community Type", x = "Year", y = "", fill = "Community Type")
-```
-
-
-### Model 4: Temperature
-
-```{r detections_by_year_temp_graph, fig.asp = 0.5, fig.width = 8.5, eval = F}
-ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) +
-  geom_point() +
-  geom_smooth(method = "glm", family = "binomial", se = FALSE) +
-  scale_color_manual(values = result_colour) +
-  theme_bw() +
-  labs(title = "EAB Detection Through Time as a Function of Temperature", x = "Year", y = "Average Temperature (degree C)", color = "Detection Result")
-```
-
-
-### Model 5: Community Type AND Temperature
-
-```{r detections_by_year_temp_type_graph, fig.asp = 0.5, fig.width = 8.5, eval = F}
-ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = result)) + 
-  geom_point() +
-  facet_wrap(~community_type) +
-  theme_bw() +
-  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  scale_color_manual(values = result_colour) +
-  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (degree C)", color = "Detection Result")
-```
-
-```{r detections_by_year_temp_type_graph2, eval = F}
-ggplot(ont_eab_data, aes(x = year, y = avg_temp, color = community_type)) +
-  geom_point() +
-  facet_wrap(~result) +
-  scale_color_manual(values = colour) +
-  theme_bw() +
-  geom_smooth(method = "lm", se = FALSE) +
-  scale_x_continuous(breaks = seq(2002, 2020, by = 2)) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Year", y = "Average Annual Temperature (degree C)", color = "Community Type")
-```
-
-```{r detections_by_year_temp_type_graph3, eval = F}
-ggplot(ont_eab_data, aes(x = avg_temp, y = result, fill = community_type)) +
-  geom_violin() +
-  scale_fill_manual(values = colour) +
-  theme_bw() +
-  labs(title = "EAB Detection by Year, Temperature and Community Type", x = "Temperature", y = "Average Annual Temperature (degree C)", color = "Community Type")
-```
-
