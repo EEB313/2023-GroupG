@@ -200,13 +200,14 @@ round(year_percent_change_odds)
 # used anova because summary provided p-values close to 1 due to small sample size
 time_community_model <- glm(as.factor(result) ~ year * community, 
                       family = binomial, data = ont_eab_data)
-<<<<<<< HEAD
 summary(time_community_model)
-
+```
+<<<<<<< HEAD
+```{r}
+anova(time_community_model, test = "Chi")
+```
 =======
 >>>>>>> 62368488806674331db4de0716b9b619effb9f50
-anova(time_community_model, test="Chi")
-```
 
 
 ## Model 2b: EAB Detection over Time by Latitude and Longitude
@@ -504,6 +505,93 @@ detections_by_year_temp_graph <- ont_eab_data %>%
   labs(title = "EAB Detection Through Time as a Function of Temperature", 
        x = "Community", y = "Average Temperature (degree C)", 
        colour = "Detection Result", tag = "(a)")
+```
+
+
+# Tables for Report
+
+
+## Table 1: Description of EAB Data Variables
+
+```{r, include = F}
+variable_names <- c("Latitude", "Longitude", "Year", "Community", 
+                    "Community Type", "Avg Temp", "Result")
+
+variable_descriptions <- c("Latitudinal position of observational site", 
+                           "Latitudinal position of observational site",
+                           "Year of sampling", 
+                           "Communities of Ontario that were surveilled for EAB presence (n=92)",
+                           "Characterized each Ontario community as either rural or urban",
+                           "Average annual temperature for each Ontario community",
+                           "EAB presence denoted in the dataset as detected or not detected")
+
+variable_units <- c("degrees (°)", "degrees (°)", "N/A", 
+                    "N/A", "N/A", "degree Celsius (°C)", "N/A")
+
+variable_types <- c("Numeric", "Numeric", "Numeric", "Categorical", 
+                    "Categorical", "Numeric", "Categorical")
+
+variables_data <- data.frame(Variable_Name = variable_names, Variable_Description = variable_descriptions, 
+                   Units = variable_units, Type = variable_types)
+
+```
+
+```{r fig.width = 10, echo = F}
+grid.table(variables_data, rows = NULL)
+```
+
+
+## Table 2. Results from the summaries of the GLM models constructed.
+
+```{r, include = F}
+model_names <- c("1: The effect of time on EAB detection.", 
+                 "2: The effect of time, community, \nand their interaction on \nEAB detection.", 
+                 "3: The effect of community \ntype on EAB detection.", 
+                 "4: The effect of temperature \non EAB detection.", 
+                 "5: The effect of temperature \nand community on EAB detection.", 
+                 "6: The effect of temperature, \ncommunity type and their interaction \non EAB detection.")
+
+model_descriptions <- c("glm(as.factor(result)~ year, \nfamily = binomial, \ndata = ont_eab_data)", 
+                           "glm(as.factor(result)~ \nyear*community, \nfamily = binomial, \ndata = ont_eab_data)",
+                           "glm(as.factor(result)~ \ncommunity_type, \nfamily = binomial, \ndata = ont_eab_data)", 
+                           "glm(as.factor(result)~ \navg_temp, \nfamily = binomial, \ndata = ont_eab_data)",
+                           "glm(as.factor(result)~ \navg_temp + community, \nfamily = binomial, \ndata = ont_eab_data)",
+                           "glm(as.factor(result)~ \navg_temp * community_type, \nfamily = binomial, \ndata = ont_eab_data)")
+
+stats_sig <- c("Yes", "No", "Yes", "Yes", 
+                "2 out of 92 communities \nwere statistically \nsignificant. Average \ntemperature was not.", 
+                "Community type was \nstatistically significant. \nThe interaction between \ntemperature and \ncommunity type was \nstatistically significant. \nTemperature alone was not.")
+
+p_values <- c("0.8*10-7", "0.997-1.00", "<2*10-16", "<2*10-16", 
+                    "<2*10-16", "0.000183 \n(community type) \n7.74*10-16 \n(interaction) \n0.171271 \n(temperature)")
+
+aic_value <- c("8152.5", "6391", "7656.8", "8048.4", 
+                    "6806.3", "7343.5")
+
+results_data <- data.frame(Model_Description = model_names, GLM = model_descriptions, 
+                   Statistical_Significance = stats_sig, P_Value = p_values, Model_AIC = aic_value)
+```
+
+```{r fig.width = 10, fig.height = 8, echo = F}
+grid.table(results_data, rows = NULL)
+```
+
+## Table 3. Results from post hoc ANOVAs (test = “Chi”) on GLM models that included individual communities.
+
+```{r, include = F}
+model_names <- c("2: The effect of time, community, and \ntheir interaction on EAB detection.", 
+                 "5: The effect of temperature \nand community on EAB detection.")
+
+variables <- c("Time \nCommunity \nInteraction", "Average temperature \nCommunity")
+
+p_values <- c("8.3*10-8 \n<2*10-16 \n<2*10-16", "<2.2*10-16 \n<2.2*10-16")
+
+results_2_data <- data.frame(Model_Description = model_names, Variables_Assessed = variables, 
+                   Associated_P_Values = p_values)
+```
+
+```{r fig.width = 7, echo = F}
+grid.table(results_2_data, rows = NULL)
 ```
 
 
